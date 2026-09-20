@@ -28,4 +28,8 @@ public partial class Product
     public virtual Category Category { get; set; } = null!;
 
     public virtual ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
+
+    public virtual ICollection<ProductPrice> ProductPrices { get; set; } = new List<ProductPrice>();
+
+    public virtual ICollection<ProductRecipe> ProductRecipes { get; set; } = new List<ProductRecipe>();
 }

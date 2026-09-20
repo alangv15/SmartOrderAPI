@@ -19,6 +19,8 @@ namespace SmartOrderAPI.Data.Mappers
             CategoryName = entity.Category?.Name ?? string.Empty,
             Sku = entity.Sku,
             SalePrice = entity.SalePrice,
+            CurrentSalePrice = entity.SalePrice,
+            HasCurrentPrice = entity.SalePrice > 0,
             IsActive = entity.IsActive,
             IsDirectSale = entity.IsDirectSale,
             CreatedAt = entity.CreatedAt,

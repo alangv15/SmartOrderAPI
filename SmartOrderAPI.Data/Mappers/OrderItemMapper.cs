@@ -12,9 +12,15 @@ namespace SmartOrderAPI.Data.Mappers
             ProductId = entity.ProductId,
             Quantity = entity.Quantity,
             UnitPrice = entity.UnitPrice,
+            UnitCost = entity.UnitCost,
             DiscountPerUnit = entity.DiscountPerUnit,
             DiscountAmount = entity.DiscountAmount,
-            LineTotal = entity.LineTotal
+            LineTotal = entity.LineTotal,
+            CostAmount = entity.CostAmount,
+            GrossProfit = entity.GrossProfit,
+            ProductRecipeId = entity.ProductRecipeId,
+            ProductPriceId = entity.ProductPriceId,
+            CostCalculatedAt = entity.CostCalculatedAt
         };
 
         public static OrderItem ToEntity(this OrderItemDto dto) => new OrderItem
@@ -24,9 +30,12 @@ namespace SmartOrderAPI.Data.Mappers
             ProductId = dto.ProductId,
             Quantity = dto.Quantity,
             UnitPrice = dto.UnitPrice,
+            UnitCost = dto.UnitCost,
             DiscountPerUnit = dto.DiscountPerUnit,
             DiscountAmount = dto.DiscountAmount,
-            LineTotal = dto.LineTotal
+            ProductRecipeId = dto.ProductRecipeId,
+            ProductPriceId = dto.ProductPriceId,
+            CostCalculatedAt = dto.CostCalculatedAt
         };
     }
 }

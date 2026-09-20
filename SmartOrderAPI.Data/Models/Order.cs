@@ -16,6 +16,10 @@ public partial class Order
 
     public decimal TotalAmount { get; set; }
 
+    public decimal? CashReceivedAmount { get; set; }
+
+    public decimal? CashChangeAmount { get; set; }
+
     public DateTime? ProductionStartDate { get; set; }
 
     public DateTime? ProductionEndDate { get; set; }
@@ -41,6 +45,8 @@ public partial class Order
     public string SalesChannel { get; set; } = null!;
 
     public bool IsDirectSale { get; set; }
+
+    public bool IsInternalProduction { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
