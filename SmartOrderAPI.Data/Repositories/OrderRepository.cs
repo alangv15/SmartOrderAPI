@@ -65,6 +65,7 @@ namespace SmartOrderAPI.Data.Repositories
                 DeliveryDate = order.DeliveryDate,
                 OrderStatusCode = order.OrderStatusCode,
                 PaymentStatusCode = order.PaymentStatusCode,
+                IsInternalProduction = order.IsInternalProduction,
                 ProductSummary = BuildProductSummary(order.OrderItems),
                 Comments = order.Comments
             }).ToList();
@@ -131,6 +132,8 @@ namespace SmartOrderAPI.Data.Repositories
             existing.Pieces = orderDto.Pieces;
             existing.DiscountAmount = orderDto.DiscountAmount;
             existing.TotalAmount = orderDto.TotalAmount;
+            existing.CashReceivedAmount = orderDto.CashReceivedAmount;
+            existing.CashChangeAmount = orderDto.CashChangeAmount;
             existing.ProductionStartDate = orderDto.ProductionStartDate;
             existing.ProductionEndDate = orderDto.ProductionEndDate;
             existing.DeliveryDate = orderDto.DeliveryDate;
@@ -144,6 +147,7 @@ namespace SmartOrderAPI.Data.Repositories
             existing.CustomerType = orderDto.CustomerType;
             existing.AcquisitionChannel = orderDto.AcquisitionChannel;
             existing.IsDirectSale = orderDto.IsDirectSale;
+            existing.IsInternalProduction = orderDto.IsInternalProduction;
             existing.UpdatedAt = DateTime.UtcNow;
 
             if (existing.OrderItems.Any())

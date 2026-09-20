@@ -88,8 +88,7 @@ namespace SmartOrderAPI.Data.Reports.Repositories
                 .AsNoTracking()
                 .Where(order =>
                     order.OrderStatusCode != CancelledOrderStatusCode &&
-                    order.SalesChannel == InStoreSalesChannelCode &&
-                    order.IsDirectSale &&
+                    !order.IsInternalProduction &&
                     order.CreatedAt >= startUtc &&
                     order.CreatedAt < endExclusiveUtc)
                 .Select(order => new
@@ -143,6 +142,115 @@ namespace SmartOrderAPI.Data.Reports.Repositories
                 TotalItemsSold = days.Sum(day => day.TotalItemsSold),
                 Days = days
             };
+        }
+
+        public async Task<MonthlyProfitReportDto> GetMonthlyProfitReportAsync(DateTime? endMonth, int months)
+        {
+            var todayLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _businessTimeZone).Date;
+            var requestedEndMonth = endMonth?.Date ?? todayLocal;
+            var localEndMonth = new DateTime(requestedEndMonth.Year, requestedEndMonth.Month, 1);
+            var localStartMonth = localEndMonth.AddMonths(-(months - 1));
+            var endExclusiveMonth = localEndMonth.AddMonths(1);
+
+            var startUtc = TimeZoneInfo.ConvertTimeToUtc(
+                DateTime.SpecifyKind(localStartMonth, DateTimeKind.Unspecified),
+                _businessTimeZone);
+            var endExclusiveUtc = TimeZoneInfo.ConvertTimeToUtc(
+                DateTime.SpecifyKind(endExclusiveMonth, DateTimeKind.Unspecified),
+                _businessTimeZone);
+
+            var orders = await _context.Orders
+                .AsNoTracking()
+                .Where(order =>
+                    order.OrderStatusCode != CancelledOrderStatusCode &&
+                    !order.IsInternalProduction &&
+                    order.CreatedAt >= startUtc &&
+                    order.CreatedAt < endExclusiveUtc)
+                .Select(order => new
+                {
+                    order.CreatedAt,
+                    order.PaymentMethod,
+                    Revenue = order.TotalAmount,
+                    Cost = order.OrderItems.Sum(item => (decimal?)(item.Quantity * item.UnitCost)) ?? 0m
+                })
+                .ToListAsync();
+
+            var totalsByMonth = orders
+                .Select(order => new
+                {
+                    Month = ToLocalMonth(order.CreatedAt),
+                    order.PaymentMethod,
+                    order.Revenue,
+                    order.Cost
+                })
+                .GroupBy(order => order.Month)
+                .ToDictionary(
+                    group => group.Key,
+                    group => new
+                    {
+                        Revenue = group.Sum(order => order.Revenue),
+                        Cash = group
+                            .Where(order => order.PaymentMethod == CashPaymentMethodCode)
+                            .Sum(order => order.Revenue),
+                        Card = group
+                            .Where(order => order.PaymentMethod == CardPaymentMethodCode)
+                            .Sum(order => order.Revenue),
+                        Cost = group.Sum(order => order.Cost)
+                    });
+
+            var monthRows = new List<MonthlyProfitReportMonthDto>(months);
+            for (var offset = 0; offset < months; offset++)
+            {
+                var month = localStartMonth.AddMonths(offset);
+                totalsByMonth.TryGetValue(month, out var totals);
+
+                var revenue = totals?.Revenue ?? 0m;
+                var cost = totals?.Cost ?? 0m;
+                var grossProfit = revenue - cost;
+
+                monthRows.Add(new MonthlyProfitReportMonthDto
+                {
+                    Month = month,
+                    TotalRevenueAmount = revenue,
+                    CashRevenueAmount = totals?.Cash ?? 0m,
+                    CardRevenueAmount = totals?.Card ?? 0m,
+                    TotalCostAmount = cost,
+                    GrossProfitAmount = grossProfit,
+                    GrossMarginPercentage = CalculateMargin(revenue, grossProfit)
+                });
+            }
+
+            var totalRevenue = monthRows.Sum(month => month.TotalRevenueAmount);
+            var totalCost = monthRows.Sum(month => month.TotalCostAmount);
+            var totalGrossProfit = totalRevenue - totalCost;
+
+            return new MonthlyProfitReportDto
+            {
+                StartMonth = localStartMonth,
+                EndMonth = localEndMonth,
+                TotalRevenueAmount = totalRevenue,
+                CashRevenueAmount = monthRows.Sum(month => month.CashRevenueAmount),
+                CardRevenueAmount = monthRows.Sum(month => month.CardRevenueAmount),
+                TotalCostAmount = totalCost,
+                GrossProfitAmount = totalGrossProfit,
+                GrossMarginPercentage = CalculateMargin(totalRevenue, totalGrossProfit),
+                Months = monthRows
+            };
+        }
+
+        private DateTime ToLocalMonth(DateTime utcDate)
+        {
+            var localDate = TimeZoneInfo.ConvertTimeFromUtc(
+                DateTime.SpecifyKind(utcDate, DateTimeKind.Utc),
+                _businessTimeZone);
+            return new DateTime(localDate.Year, localDate.Month, 1);
+        }
+
+        private static decimal CalculateMargin(decimal revenue, decimal grossProfit)
+        {
+            return revenue == 0
+                ? 0
+                : decimal.Round((grossProfit / revenue) * 100m, 2, MidpointRounding.AwayFromZero);
         }
 
         private static TimeZoneInfo ResolveTimeZone(string? timeZoneId)

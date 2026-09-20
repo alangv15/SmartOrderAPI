@@ -21,5 +21,13 @@ namespace SmartOrderAPI.Business.Reports.Service
         {
             return await _reportRepository.GetSalesSummaryReportAsync(startDate, endDate);
         }
+
+        public async Task<MonthlyProfitReportDto> GetMonthlyProfitReportAsync(DateTime? endMonth, int months)
+        {
+            if (months is < 1 or > 24)
+                throw new ArgumentOutOfRangeException(nameof(months), "El numero de meses debe estar entre 1 y 24.");
+
+            return await _reportRepository.GetMonthlyProfitReportAsync(endMonth, months);
+        }
     }
 }

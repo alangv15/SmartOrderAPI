@@ -5,6 +5,10 @@ namespace SmartOrderAPI.Business.Service
 {
     public class OrderService : IOrderService
     {
+        private const string InternalPaymentMethodCode = "Internal";
+        private const string NotApplicablePaymentStatusCode = "NotApplicable";
+        private const string NewCustomerTypeCode = "New";
+
         private readonly IOrderRepository _orderRepo;
 
         public OrderService(IOrderRepository orderRepo)
@@ -50,7 +54,9 @@ namespace SmartOrderAPI.Business.Service
             if (dto.Pieces <= 0)
                 throw new ArgumentException("El número de piezas debe ser mayor a cero.");
 
-            if (dto.TotalAmount <= 0)
+            NormalizeInternalProduction(dto);
+
+            if (!dto.IsInternalProduction && dto.TotalAmount <= 0)
                 throw new ArgumentException("El monto total debe ser mayor a cero.");
 
             dto.CreatedAt = DateTime.UtcNow;
@@ -63,6 +69,8 @@ namespace SmartOrderAPI.Business.Service
         {
             if (dto.OrderId <= 0)
                 throw new ArgumentException("ID de orden inválido.");
+
+            NormalizeInternalProduction(dto);
 
             dto.UpdatedAt = DateTime.UtcNow;
             await _orderRepo.UpdateAsync(dto);
@@ -85,6 +93,29 @@ namespace SmartOrderAPI.Business.Service
         public async Task CancelAsync(int id)
         {
             await _orderRepo.DeleteAsync(id);
+        }
+
+        private static void NormalizeInternalProduction(OrderDto dto)
+        {
+            if (!dto.IsInternalProduction)
+            {
+                return;
+            }
+
+            dto.CustomerId = null;
+            dto.DiscountAmount = 0;
+            dto.TotalAmount = 0;
+            dto.PaymentStatusCode = NotApplicablePaymentStatusCode;
+            dto.PaymentMethod = InternalPaymentMethodCode;
+            dto.OrderDiscounts.Clear();
+
+            foreach (var item in dto.OrderItems)
+            {
+                item.UnitPrice = 0;
+                item.DiscountPerUnit = 0;
+                item.DiscountAmount = 0;
+                item.LineTotal = 0;
+            }
         }
     }
 }

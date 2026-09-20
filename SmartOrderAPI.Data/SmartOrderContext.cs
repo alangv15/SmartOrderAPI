@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using SmartOrderAPI.Data.Models;
@@ -41,12 +41,17 @@ public partial class SmartOrderContext : DbContext
     public virtual DbSet<OrderItem> OrderItems { get; set; }
 
     public virtual DbSet<OrderStatus> OrderStatuses { get; set; }
+    public virtual DbSet<CostItem> CostItems { get; set; }
+    public virtual DbSet<CostItemCost> CostItemCosts { get; set; }
 
     public virtual DbSet<PaymentStatus> PaymentStatuses { get; set; }
 
     public virtual DbSet<Permission> Permissions { get; set; }
 
     public virtual DbSet<Product> Products { get; set; }
+    public virtual DbSet<ProductPrice> ProductPrices { get; set; }
+    public virtual DbSet<ProductRecipe> ProductRecipes { get; set; }
+    public virtual DbSet<ProductRecipeItem> ProductRecipeItems { get; set; }
 
     public virtual DbSet<Role> Roles { get; set; }
 
@@ -237,6 +242,8 @@ public partial class SmartOrderContext : DbContext
                 .IsUnicode(false);
             entity.Property(e => e.DeliveryDate).HasColumnType("datetime");
             entity.Property(e => e.DiscountAmount).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.CashReceivedAmount).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.CashChangeAmount).HasColumnType("decimal(10, 2)");
             entity.Property(e => e.OrderStatusCode)
                 .HasMaxLength(50)
                 .HasDefaultValue("Pending");
@@ -248,6 +255,7 @@ public partial class SmartOrderContext : DbContext
             entity.Property(e => e.SalesChannel)
                 .HasMaxLength(50)
                 .HasDefaultValue("In-Store");
+            entity.Property(e => e.IsInternalProduction).HasDefaultValue(false);
             entity.Property(e => e.TotalAmount).HasColumnType("decimal(10, 2)");
             entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
             entity.Property(e => e.UserId).HasColumnName("UserID");
@@ -312,10 +320,20 @@ public partial class SmartOrderContext : DbContext
             entity.Property(e => e.LineTotal)
                 .HasComputedColumnSql("([Quantity]*[UnitPrice]-isnull([DiscountAmount],(0)))", true)
                 .HasColumnType("decimal(22, 2)");
+            entity.Property(e => e.CostAmount)
+                .HasComputedColumnSql("([Quantity]*[UnitCost])", true)
+                .HasColumnType("decimal(22, 4)");
+            entity.Property(e => e.GrossProfit)
+                .HasComputedColumnSql("(([Quantity]*[UnitPrice]-isnull([DiscountAmount],(0)))-([Quantity]*[UnitCost]))", true)
+                .HasColumnType("decimal(23, 4)");
+            entity.Property(e => e.CostCalculatedAt).HasColumnType("datetime");
             entity.Property(e => e.OrderId).HasColumnName("OrderID");
             entity.Property(e => e.ProductId)
                 .HasColumnName("ProductID")
                 .ValueGeneratedNever();
+            entity.Property(e => e.ProductPriceId).HasColumnName("ProductPriceID");
+            entity.Property(e => e.ProductRecipeId).HasColumnName("ProductRecipeID");
+            entity.Property(e => e.UnitCost).HasColumnType("decimal(10, 4)");
             entity.Property(e => e.UnitPrice).HasColumnType("decimal(10, 2)");
 
             entity.HasOne(d => d.Order).WithMany(p => p.OrderItems)
@@ -327,6 +345,56 @@ public partial class SmartOrderContext : DbContext
                 .HasForeignKey(d => d.ProductId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_OrderItems_Products");
+
+            entity.HasOne(d => d.ProductPrice).WithMany()
+                .HasForeignKey(d => d.ProductPriceId)
+                .HasConstraintName("FK_OrderItems_ProductPrices");
+
+            entity.HasOne(d => d.ProductRecipe).WithMany()
+                .HasForeignKey(d => d.ProductRecipeId)
+                .HasConstraintName("FK_OrderItems_ProductRecipes");
+        });
+
+        modelBuilder.Entity<CostItem>(entity =>
+        {
+            entity.HasKey(e => e.CostItemId);
+            entity.ToTable("CostItems", "Catalog");
+            entity.Property(e => e.CostItemId).HasColumnName("CostItemID");
+            entity.Property(e => e.Name).HasMaxLength(100);
+            entity.Property(e => e.Description).HasMaxLength(255);
+            entity.Property(e => e.CostItemTypeCode).HasMaxLength(20).IsUnicode(false);
+            entity.Property(e => e.UnitCode).HasMaxLength(20).IsUnicode(false);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnType("datetime").HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.UpdatedAt).HasColumnType("datetime");
+        });
+
+        modelBuilder.Entity<CostItemCost>(entity =>
+        {
+            entity.HasKey(e => e.CostItemCostId);
+            entity.ToTable("CostItemCosts", "Catalog");
+            entity.HasIndex(e => e.CostItemId, "UX_CostItemCosts_Current")
+                .IsUnique()
+                .HasFilter("[EffectiveTo] IS NULL");
+            entity.HasIndex(e => new { e.CostItemId, e.EffectiveFrom }, "UX_CostItemCosts_CostItem_EffectiveFrom")
+                .IsUnique();
+            entity.Property(e => e.CostItemCostId).HasColumnName("CostItemCostID");
+            entity.Property(e => e.CostItemId).HasColumnName("CostItemID");
+            entity.Property(e => e.PresentationName).HasMaxLength(100);
+            entity.Property(e => e.PresentationQuantity).HasColumnType("decimal(18, 4)");
+            entity.Property(e => e.PresentationCost).HasColumnType("decimal(18, 6)");
+            entity.Property(e => e.UnitCost)
+                .HasComputedColumnSql("(CONVERT([decimal](18,6),[PresentationCost]/NULLIF([PresentationQuantity],(0))))", true)
+                .HasColumnType("decimal(18, 6)");
+            entity.Property(e => e.EffectiveFrom).HasColumnType("date");
+            entity.Property(e => e.EffectiveTo).HasColumnType("date");
+            entity.Property(e => e.CreatedAt).HasColumnType("datetime").HasDefaultValueSql("(getdate())");
+            entity.Property(e => e.CreatedByUserId).HasColumnName("CreatedByUserID");
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.HasOne(d => d.CostItem).WithMany(p => p.CostItemCosts)
+                .HasForeignKey(d => d.CostItemId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CostItemCosts_CostItems");
         });
 
         modelBuilder.Entity<OrderStatus>(entity =>
@@ -396,6 +464,85 @@ public partial class SmartOrderContext : DbContext
                 .HasForeignKey(d => d.CategoryId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_Products_Categories");
+        });
+
+        modelBuilder.Entity<ProductPrice>(entity =>
+        {
+            entity.HasKey(e => e.ProductPriceId);
+            entity.ToTable("ProductPrices", "Catalog");
+
+            entity.HasIndex(e => e.ProductId, "UX_ProductPrices_Current")
+                .IsUnique()
+                .HasFilter("[EffectiveTo] IS NULL");
+
+            entity.HasIndex(e => new { e.ProductId, e.EffectiveFrom }, "UX_ProductPrices_Product_EffectiveFrom")
+                .IsUnique();
+
+            entity.Property(e => e.ProductPriceId).HasColumnName("ProductPriceID");
+            entity.Property(e => e.ProductId).HasColumnName("ProductID");
+            entity.Property(e => e.SalePrice).HasColumnType("decimal(10, 2)");
+            entity.Property(e => e.EffectiveFrom).HasColumnType("date");
+            entity.Property(e => e.EffectiveTo).HasColumnType("date");
+            entity.Property(e => e.CreatedAt).HasColumnType("datetime");
+            entity.Property(e => e.CreatedByUserId).HasColumnName("CreatedByUserID");
+            entity.Property(e => e.Notes).HasMaxLength(500);
+
+            entity.HasOne(d => d.Product).WithMany(p => p.ProductPrices)
+                .HasForeignKey(d => d.ProductId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductPrices_Products");
+        });
+
+        modelBuilder.Entity<ProductRecipe>(entity =>
+        {
+            entity.HasKey(e => e.ProductRecipeId);
+            entity.ToTable("ProductRecipes", "Catalog");
+
+            entity.HasIndex(e => e.ProductId, "UX_ProductRecipes_Current")
+                .IsUnique()
+                .HasFilter("[EffectiveTo] IS NULL");
+
+            entity.HasIndex(e => new { e.ProductId, e.EffectiveFrom }, "UX_ProductRecipes_Product_EffectiveFrom")
+                .IsUnique();
+
+            entity.HasIndex(e => new { e.ProductId, e.VersionNumber }, "UQ_ProductRecipes_Product_Version")
+                .IsUnique();
+
+            entity.Property(e => e.ProductRecipeId).HasColumnName("ProductRecipeID");
+            entity.Property(e => e.ProductId).HasColumnName("ProductID");
+            entity.Property(e => e.EffectiveFrom).HasColumnType("date");
+            entity.Property(e => e.EffectiveTo).HasColumnType("date");
+            entity.Property(e => e.RecipeCost).HasColumnType("decimal(18, 6)");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnType("datetime");
+            entity.Property(e => e.CreatedByUserId).HasColumnName("CreatedByUserID");
+            entity.Property(e => e.Notes).HasMaxLength(500);
+
+            entity.HasOne(d => d.Product).WithMany(p => p.ProductRecipes)
+                .HasForeignKey(d => d.ProductId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductRecipes_Products");
+        });
+
+        modelBuilder.Entity<ProductRecipeItem>(entity =>
+        {
+            entity.HasKey(e => e.ProductRecipeItemId);
+            entity.ToTable("ProductRecipeItems", "Catalog");
+            entity.HasIndex(e => new { e.ProductRecipeId, e.CostItemCostId }, "UQ_ProductRecipeItems_Recipe_CostItemCost")
+                .IsUnique();
+            entity.Property(e => e.ProductRecipeItemId).HasColumnName("ProductRecipeItemID");
+            entity.Property(e => e.ProductRecipeId).HasColumnName("ProductRecipeID");
+            entity.Property(e => e.CostItemCostId).HasColumnName("CostItemCostID");
+            entity.Property(e => e.Quantity).HasColumnType("decimal(18, 4)");
+            entity.Property(e => e.RecipeItemCost).HasColumnType("decimal(18, 6)");
+            entity.HasOne(d => d.ProductRecipe).WithMany(p => p.ProductRecipeItems)
+                .HasForeignKey(d => d.ProductRecipeId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductRecipeItems_ProductRecipes");
+            entity.HasOne(d => d.CostItemCost).WithMany()
+                .HasForeignKey(d => d.CostItemCostId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductRecipeItems_CostItemCosts");
         });
 
         modelBuilder.Entity<Role>(entity =>

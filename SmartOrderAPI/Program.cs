@@ -17,6 +17,8 @@ builder.Services.AddScoped<IBranchRepository, BranchRepository>();
 builder.Services.AddScoped<IBranchService, BranchService>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<ICostingRepository, CostingRepository>();
+builder.Services.AddScoped<ICostingService, CostingService>();
 builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IDiscountRuleRepository, DiscountRuleRepository>();

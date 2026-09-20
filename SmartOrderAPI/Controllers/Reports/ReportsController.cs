@@ -43,5 +43,25 @@ namespace SmartOrderAPI.Controllers.Reports
                 return StatusCode(500, new ApiResponse<SalesSummaryReportDto>(ex, "Error al obtener el reporte acumulado de ventas."));
             }
         }
+
+        [HttpGet("monthly-profit")]
+        public async Task<ActionResult<ApiResponse<MonthlyProfitReportDto>>> GetMonthlyProfit(
+            [FromQuery] DateTime? endMonth,
+            [FromQuery] int months = 6)
+        {
+            try
+            {
+                var report = await _reportService.GetMonthlyProfitReportAsync(endMonth, months);
+                return Ok(new ApiResponse<MonthlyProfitReportDto>(report));
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                return BadRequest(new ApiResponse<MonthlyProfitReportDto>(ex, ex.Message));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<MonthlyProfitReportDto>(ex, "Error al obtener el reporte mensual de rentabilidad."));
+            }
+        }
     }
 }

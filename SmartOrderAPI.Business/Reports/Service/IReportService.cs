@@ -6,5 +6,6 @@ namespace SmartOrderAPI.Business.Reports.Service
     {
         Task<DailySalesReportDto> GetDailySalesReportAsync(DateTime? date);
         Task<SalesSummaryReportDto> GetSalesSummaryReportAsync(DateTime? startDate, DateTime? endDate);
+        Task<MonthlyProfitReportDto> GetMonthlyProfitReportAsync(DateTime? endMonth, int months);
     }
 }
